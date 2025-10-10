@@ -13,7 +13,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from openai import OpenAI
 
-from . import text_utils
+import text_utils
 
 
 LOGGER = logging.getLogger(__name__)
@@ -89,22 +89,32 @@ def _fetch_batch(name: str) -> List[str]:
         raise RuntimeError("OPENAI_API_KEY must be configured")
 
     prompt = (
-        "あなたは歴史人物の言葉を現代向けに要約する作家です。"
-        "与えられた人物の価値観を踏まえて、現代生活や仕事に通じる含意を持つ"
-        f"40文字以内の日本語の短文を{BATCH_SIZE}本生成してください。"
-        "番号や句読点での列挙は避け、同義反復もしないでください。"
+        "あなたは歴史研究家です。"
+        f"{name}が実際に残した言葉を、手紙・演説・著作・発言記録から正確に引用してください。\n"
+        "【重要】創作は一切禁止です。史料に基づく実際の言葉のみを抽出してください。\n"
+        "【条件】\n"
+        "- 有名な言葉を優先してください\n"
+        "- 原文に忠実に引用してください（古文調の場合のみ現代語訳可）\n"
+        f"- 80文字以内の日本語で{BATCH_SIZE}本抽出してください\n"
+        "- 確実に記録されている言葉のみを選んでください\n"
+        "- 番号や句読点での列挙は避け、同義反復もしないでください\n"
+        '【出力形式】{"sayings": ["言葉1", "言葉2", ...]} のJSON形式'
     )
     response = openai_client.chat.completions.create(
         model=OPENAI_MODEL,
-        temperature=0.9,
-        top_p=0.9,
-        frequency_penalty=0.7,
-        presence_penalty=0.6,
+        temperature=0.1,
+        top_p=0.5,
+        frequency_penalty=0.3,
+        presence_penalty=0.1,
         response_format={"type": "json_object"},
         messages=[
             {
                 "role": "system",
-                "content": "あなたは偉人の思想を現代語に落とし込む編集者です。",
+                "content": (
+                    "あなたは歴史文献の専門家です。"
+                    "創作は一切禁止。史料・記録に基づく実際の言葉のみを正確に引用してください。"
+                    "不確実な場合は含めないでください。"
+                ),
             },
             {
                 "role": "user",
