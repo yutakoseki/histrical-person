@@ -1,0 +1,15 @@
+{
+  "name": "histrical-person",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "lint:py": "ruff check lambdas",
+    "format:py": "black lambdas",
+    "test": "pytest -q lambdas/generate_snippets_for_figure/tests",
+    "cdk": "pnpm --dir cdk exec cdk",
+    "cdk:bootstrap": "pnpm --dir cdk exec cdk bootstrap",
+    "cdk:deploy": "pnpm --dir cdk exec cdk deploy",
+    "cdk:destroy": "pnpm --dir cdk exec cdk destroy"
+  }
+}

@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# CDK
+cdk.out/
+cdk.context.json
+*.d.ts
+*.js
+!jest.config.js
+cdk/dist/
+
+# Environment variables
+.env
+.env.local
+
+# AWS
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Lambda Layers - バイナリとフォントファイルは除外
+layers/ffmpeg/bin/ffmpeg
+layers/ffmpeg/bin/ffprobe
+layers/fonts/fonts/*.otf
+layers/fonts/fonts/*.ttf
+layers/fonts/default.jpg
+layers/fonts/default.png
+
+# Temporary files
+*.tmp
+*.bak
+response.json
+deploy.log
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
