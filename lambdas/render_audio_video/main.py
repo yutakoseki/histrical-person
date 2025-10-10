@@ -104,7 +104,7 @@ def _synthesize_audio(tmp: pathlib.Path, sayings: Sequence[Dict[str, Any]]) -> L
             model=OPENAI_TTS_MODEL,
             voice=OPENAI_TTS_VOICE,
             input=text,
-            format=OPENAI_TTS_FORMAT,
+            response_format=OPENAI_TTS_FORMAT,
         ) as response:
             response.stream_to_file(output_path)
         duration = _probe_duration(output_path)
@@ -249,7 +249,7 @@ def _resolve_portrait(tmp: pathlib.Path, name: str) -> pathlib.Path:
         if error.response["Error"]["Code"] != "404":
             raise
         LOGGER.warning("Portrait %s missing from S3, falling back to default", object_key)
-    fallback = pathlib.Path("/opt/fonts/default_portrait.jpg")
+    fallback = pathlib.Path("/opt/default.jpg")
     if fallback.exists():
         return fallback
     raise FileNotFoundError("Portrait image not found in S3 or layer")
