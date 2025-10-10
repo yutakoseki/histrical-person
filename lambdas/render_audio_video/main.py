@@ -105,6 +105,7 @@ def _synthesize_audio(tmp: pathlib.Path, sayings: Sequence[Dict[str, Any]]) -> L
             voice=OPENAI_TTS_VOICE,
             input=text,
             response_format=OPENAI_TTS_FORMAT,
+            speed=0.75,  # 読み上げ速度をさらに遅く（1.0がデフォルト、0.75でゆっくり）
         ) as response:
             response.stream_to_file(output_path)
         duration = _probe_duration(output_path)
@@ -133,37 +134,49 @@ def _probe_duration(path: pathlib.Path) -> float:
 
 
 def _apply_timings(clips: List[Clip]) -> None:
-    cursor = 0.0
-    padding = 0.0
+    cursor = 0.0  # 冒頭から開始
+    padding = 5.0  # 格言間に5秒の間隔
     for clip in clips:
-        clip.start = cursor
-        clip.end = cursor + clip.duration
-        cursor = clip.end + padding
+        clip.start = cursor  # テロップ開始 = 音声開始
+        clip.end = cursor + clip.duration + padding  # テロップは5秒後まで表示し続ける
+        cursor = cursor + clip.duration + padding  # 次の音声開始位置
 
 
 def _concat_audio(tmp: pathlib.Path, clips: Sequence[Clip]) -> pathlib.Path:
-    filelist = tmp / "audio_files.txt"
-    lines = [f"file '{clip.audio_path}'" for clip in clips]
-    filelist.write_text("\n".join(lines), encoding="utf-8")
+    """音声ファイルを連結し、タイミングに合わせて無音を挿入する"""
     output = tmp / "merged.mp3"
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(filelist),
-            "-c",
-            "copy",
-            str(output),
-        ],
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    
+    # FFmpegのfilter_complexを使って、各クリップを正確なタイミングに配置
+    filter_parts = []
+    for i, clip in enumerate(clips):
+        # 各音声ファイルを入力として読み込み
+        filter_parts.append(f"[{i+1}]adelay={int(clip.start * 1000)}|{int(clip.start * 1000)}[a{i}]")
+    
+    # すべての音声をミックス
+    mix_inputs = "".join([f"[a{i}]" for i in range(len(clips))])
+    filter_complex = ";".join(filter_parts) + f";{mix_inputs}amix=inputs={len(clips)}:duration=longest[out]"
+    
+    # FFmpegコマンドを構築
+    cmd = ["ffmpeg", "-y"]
+    
+    # 無音の入力を追加（開始用）
+    cmd.extend(["-f", "lavfi", "-i", "anullsrc=r=24000:cl=stereo"])
+    
+    # 各クリップの音声ファイルを入力として追加
+    for clip in clips:
+        cmd.extend(["-i", str(clip.audio_path)])
+    
+    # フィルタを適用
+    cmd.extend([
+        "-filter_complex", filter_complex,
+        "-map", "[out]",
+        "-t", str(clips[-1].end + 2.0),  # 最後のクリップ終了+2秒
+        "-c:a", "libmp3lame",
+        "-q:a", "2",
+        str(output),
+    ])
+    
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return output
 
 
@@ -193,7 +206,7 @@ def _write_ass(clips: Sequence[Clip], path: pathlib.Path) -> None:
 
         [V4+ Styles]
         Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-        Style: LeftPane,Noto Sans CJK JP,42,&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,0,0,0,0,100,100,0,0,1,3,0,7,60,660,80,1
+        Style: LeftPane,Noto Serif CJK JP,68,&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,0,0,0,0,100,100,0,0,1,3,0,4,80,620,960,1
 
         [Events]
         Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
