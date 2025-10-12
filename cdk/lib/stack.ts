@@ -60,6 +60,8 @@ export class HistricalPersonStack extends cdk.Stack {
       OPENAI_TTS_MODEL: process.env.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts",
       OPENAI_TTS_VOICE: process.env.OPENAI_TTS_VOICE ?? "ash",
       OPENAI_TTS_FORMAT: process.env.OPENAI_TTS_FORMAT ?? "mp3",
+      OPENAI_IMAGE_MODEL: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1",
+      OPENAI_IMAGE_SIZE: process.env.OPENAI_IMAGE_SIZE ?? "1024x1792",
       LOCK_MINUTES: process.env.LOCK_MINUTES ?? "60",
       YT_CLIENT_ID: process.env.YT_CLIENT_ID ?? "",
       YT_CLIENT_SECRET: process.env.YT_CLIENT_SECRET ?? "",

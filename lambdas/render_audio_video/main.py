@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import pathlib
@@ -25,8 +26,15 @@ S3_BUCKET = os.environ["S3_BUCKET"]
 DDB_SAYINGS = os.environ.get("DDB_SAYINGS", "sayings")
 DDB_FIGURES = os.environ.get("DDB_FIGURES", "figures")
 OPENAI_TTS_MODEL = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
-OPENAI_TTS_VOICE = os.environ.get("OPENAI_TTS_VOICE", "alloy")
+OPENAI_TTS_VOICE = os.environ.get("OPENAI_TTS_VOICE", "ash").strip().lower()
 OPENAI_TTS_FORMAT = os.environ.get("OPENAI_TTS_FORMAT", "mp3")
+VOICE_GAIN_DB = float(os.environ.get("VOICE_GAIN_DB", "8.0"))
+OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "dall-e-3")
+OPENAI_IMAGE_SIZE = os.environ.get("OPENAI_IMAGE_SIZE", "1024x1792")
+BGM_S3_BUCKET = os.environ.get("BGM_S3_BUCKET", S3_BUCKET)
+BGM_S3_KEY = os.environ.get("BGM_S3_KEY")
+BGM_VOLUME = float(os.environ.get("BGM_VOLUME", "0.03"))
+VOICE_GAIN = 10 ** (VOICE_GAIN_DB / 20.0)
 
 dynamodb = boto3.resource("dynamodb")
 sayings_table = dynamodb.Table(DDB_SAYINGS)
@@ -59,13 +67,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         clips = _synthesize_audio(tmp, sayings)
         merged_audio = _concat_audio(tmp, clips)
         total_duration = clips[-1].end if clips else 0.0
+        bgm_source = _resolve_bgm(tmp)
+        audio_with_bgm = _mix_audio_with_bgm(tmp, merged_audio, bgm_source)
+        total_duration = max(total_duration, _probe_duration(audio_with_bgm))
         srt_path = tmp / "captions.srt"
         _write_srt(clips, srt_path)
         ass_path = tmp / "captions.ass"
         _write_ass(clips, ass_path)
         portrait = _resolve_portrait(tmp, name)
         video_path = tmp / "final.mp4"
-        _render_video(merged_audio, ass_path, portrait, video_path)
+        _render_video(audio_with_bgm, ass_path, portrait, video_path)
         _upload_outputs(name, video_path, srt_path)
 
     _update_figure_video(figure_pk, name, total_duration)
@@ -201,12 +212,12 @@ def _write_ass(clips: Sequence[Clip], path: pathlib.Path) -> None:
         """\
         [Script Info]
         ScriptType: v4.00+
-        PlayResX: 1080
-        PlayResY: 1920
+        PlayResX: 960
+        PlayResY: 1080
 
         [V4+ Styles]
         Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-        Style: LeftPane,Noto Serif CJK JP,68,&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,0,0,0,0,100,100,0,0,1,3,0,4,80,620,960,1
+        Style: LeftPane,Noto Serif CJK JP,56,&H00FFFFFF,&H000000FF,&H00000000,&HFF000000,0,0,0,0,100,100,0,0,1,3,0,4,40,40,40,1
 
         [Events]
         Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -252,20 +263,197 @@ def _format_ass_time(value: float) -> str:
     return f"{hours:d}:{minutes:02d}:{seconds:02d}.{centiseconds:02d}"
 
 
-def _resolve_portrait(tmp: pathlib.Path, name: str) -> pathlib.Path:
-    object_key = f"portraits/{name}.jpg"
-    destination = tmp / "portrait.jpg"
-    try:
-        s3_client.download_file(S3_BUCKET, object_key, str(destination))
-        return destination
-    except ClientError as error:
-        if error.response["Error"]["Code"] != "404":
-            raise
-        LOGGER.warning("Portrait %s missing from S3, falling back to default", object_key)
-    fallback = pathlib.Path("/opt/default.jpg")
+def _resolve_bgm(tmp: pathlib.Path) -> pathlib.Path:
+    """背景音源を S3 もしくは Layer から取得する。"""
+    if BGM_S3_KEY:
+        download_dir = tmp / "bgm"
+        download_dir.mkdir(parents=True, exist_ok=True)
+        destination = download_dir / pathlib.Path(BGM_S3_KEY).name
+        try:
+            s3_client.download_file(BGM_S3_BUCKET, BGM_S3_KEY, str(destination))
+            LOGGER.info("BGM downloaded from S3: s3://%s/%s", BGM_S3_BUCKET, BGM_S3_KEY)
+            return destination
+        except ClientError as error:
+            if error.response["Error"]["Code"] != "404":
+                raise
+            LOGGER.warning("BGM not found in S3 at %s, falling back to layer", BGM_S3_KEY)
+
+    fallback = pathlib.Path("/opt/bgm.mp3")
     if fallback.exists():
+        LOGGER.info("Using layered BGM at %s", fallback)
         return fallback
-    raise FileNotFoundError("Portrait image not found in S3 or layer")
+
+    raise FileNotFoundError(
+        "Background music not found. Provide BGM_S3_KEY or bundle /opt/bgm.mp3 in the layer."
+    )
+
+
+def _mix_audio_with_bgm(
+    tmp: pathlib.Path,
+    voice_audio: pathlib.Path,
+    bgm_audio: pathlib.Path,
+) -> pathlib.Path:
+    """音声に BGM を重ねる。BGM はループさせて動画尺に合わせる。"""
+    normalized_voice = tmp / "voice_normalized.m4a"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(voice_audio),
+            "-filter_complex",
+            "loudnorm=I=-16:TP=-1.5:LRA=11",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            str(normalized_voice),
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    output = tmp / "audio_with_bgm.m4a"
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(normalized_voice),
+        "-stream_loop",
+        "-1",
+        "-i",
+        str(bgm_audio),
+        "-filter_complex",
+        f"[0:a]volume={VOICE_GAIN}[voice];"
+        f"[1:a]volume={BGM_VOLUME}[bgm];"
+        "[voice][bgm]amix=inputs=2:duration=first[aout]",
+        "-map",
+        "[aout]",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        str(output),
+    ]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return output
+
+
+def _resolve_portrait(tmp: pathlib.Path, name: str) -> pathlib.Path:
+    # 複数の画像形式をサポート（優先順位: jpg → png → webp）
+    extensions = ["jpg", "png", "webp"]
+    source_path = None
+    generated = False
+    found_ext = None
+    
+    # S3から画像を探す（複数形式に対応）
+    for ext in extensions:
+        object_key = f"portraits/{name}.{ext}"
+        temp_path = tmp / f"portrait_source.{ext}"
+        try:
+            s3_client.download_file(S3_BUCKET, object_key, str(temp_path))
+            source_path = temp_path
+            found_ext = ext
+            LOGGER.info("Portrait found in S3: %s", object_key)
+            break
+        except ClientError as error:
+            if error.response["Error"]["Code"] != "404":
+                raise
+            # 404の場合は次の形式を試す
+            continue
+    
+    # S3に画像がなければ生成
+    if source_path is None:
+        LOGGER.info("Portrait for %s not found in S3. Generating with %s", name, OPENAI_IMAGE_MODEL)
+        try:
+            source_path = _generate_portrait(tmp, name)
+            generated = True
+            found_ext = "jpg"
+        except Exception as generate_error:  # noqa: BLE001
+            LOGGER.warning("Failed to generate portrait for %s: %s", name, generate_error)
+            fallback = pathlib.Path("/opt/default.jpg")
+            if fallback.exists():
+                source_path = fallback
+                found_ext = "jpg"
+            else:
+                raise FileNotFoundError("Portrait image not found in S3 or layer") from generate_error
+    
+    # FFmpeg用に準備（モノクロ変換など）
+    prepared_path = tmp / "portrait_prepared.jpg"
+    _prepare_portrait(source_path, prepared_path)
+    
+    # 生成した画像はS3にキャッシュ
+    if generated:
+        try:
+            cache_key = f"portraits/{name}.jpg"
+            s3_client.upload_file(str(prepared_path), S3_BUCKET, cache_key)
+            LOGGER.info("Generated portrait cached to S3: %s", cache_key)
+        except ClientError as upload_error:
+            LOGGER.warning("Unable to cache generated portrait to S3: %s", upload_error)
+    
+    return prepared_path
+
+
+def _generate_portrait(tmp: pathlib.Path, name: str) -> pathlib.Path:
+    prompt = textwrap.dedent(
+        f"""
+        Create a monochrome, historically faithful portrait of {name}.
+        Reproduce the most authoritative and widely recognised archival likeness,
+        matching period-accurate wardrobe, grooming, posture, and facial proportions.
+        Render with photographic realism, neutral dark backdrop, soft studio lighting,
+        medium-format film texture, and meticulous detail faithful to historical records.
+        """
+    ).strip()
+    LOGGER.info("Generating portrait for %s via OpenAI image model %s", name, OPENAI_IMAGE_MODEL)
+    try:
+        response = openai_client.images.generate(
+            model=OPENAI_IMAGE_MODEL,
+            prompt=prompt,
+            size=OPENAI_IMAGE_SIZE,
+            quality="high",
+        )
+    except Exception as e:
+        # quality="high" が使えない場合は削除
+        LOGGER.warning("Failed with quality param: %s, retrying without it", e)
+        response = openai_client.images.generate(
+            model=OPENAI_IMAGE_MODEL,
+            prompt=prompt,
+            size=OPENAI_IMAGE_SIZE,
+        )
+    
+    # URLから画像をダウンロード
+    import urllib.request
+    LOGGER.info("Response data: %s", response.data)
+    if not response.data or not response.data[0].url:
+        raise ValueError(f"No image URL in response: {response}")
+    image_url = response.data[0].url
+    output = tmp / "portrait_generated.png"
+    urllib.request.urlretrieve(image_url, str(output))
+    LOGGER.info("Portrait image downloaded from %s", image_url)
+    return output
+
+
+def _prepare_portrait(source: pathlib.Path, destination: pathlib.Path) -> None:
+    vf = (
+        "colorchannelmixer=.299:.587:.114:0:"
+        ".299:.587:.114:0:"
+        ".299:.587:.114:0,format=yuv420p"
+    )
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(source),
+            "-vf",
+            vf,
+            str(destination),
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def _render_video(
@@ -276,10 +464,11 @@ def _render_video(
 ) -> None:
     ass_arg = str(ass_path).replace("\\", "\\\\")
     filter_complex = (
-        "color=size=1080x1920:color=black[base];"
-        "[1:v]scale=640:1920:force_original_aspect_ratio=decrease[right];"
-        "[base][right]overlay=x=440:y=0[bg];"
-        f"[bg]subtitles={ass_arg}:fontsdir=/opt/fonts[withsub]"
+        "[1:v]scale=960:1080:force_original_aspect_ratio=increase,"
+        "crop=960:1080,setsar=1[right];"
+        "color=size=960x1080:color=black[leftbase];"
+        f"[leftbase]subtitles={ass_arg}:fontsdir=/opt/fonts[left];"
+        "[left][right]hstack=inputs=2[withsub]"
     )
 
     subprocess.run(

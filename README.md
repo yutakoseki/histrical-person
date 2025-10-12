@@ -17,7 +17,7 @@
   - `ffmpeg`: `ffmpeg` / `ffprobe` の静的バイナリ  
   - `fonts`: 字幕用フォント（例: Noto Sans CJK JP）とデフォルトポートレート画像
 - **S3 バケット**  
-  - TTS 音声・字幕・最終動画、人物画像（`portraits/<name>.jpg`）の保管
+  - TTS 音声・字幕・最終動画、自動生成したモノクロ人物画像（`portraits/<name>.jpg` にキャッシュ）
 - **EventBridge ルール**  
   1. 毎日 09:00 JST に `select_and_lock_figure` を起動  
   2. 成功時のレスポンスを `generate_snippets_for_figure` に連鎖呼び出し  
@@ -43,8 +43,9 @@
    - Noto Sans CJK (SIL Open Font License) などを `layers/fonts` に配置 (`fonts/NotoSansCJKjp-Regular.otf` 等)  
    - 同階層に `default_portrait.jpg`（著作権クリアなデフォルト画像）を置く  
    - `layers/fonts` を ZIP 化して Lambda Layer として利用
-5. **S3 画像の準備**  
-   - `s3://<S3_BUCKET>/portraits/<人物名>.jpg` に人物画像を保存（存在しない場合は Layer のデフォルトを使用）
+5. **（任意）S3 画像の上書き**  
+   - デフォルトでは OpenAI 画像生成でモノクロ肖像を自動生成し、`portraits/<人物名>.jpg` として S3 にキャッシュします。  
+   - 独自画像を使いたい場合のみ、同キーに手動でアップロードしてください。
 
 `.env.sample` をコピーして `.env` を作成し、上記の認証情報・設定値を入力してください。
 
@@ -123,7 +124,7 @@ make test
 
 - `cdk deploy` 後、EventBridge → Lambda のチェーンが動作し、`figures` レコードが `available` → `locked` → `completed` へ自動遷移する。
 - `sayings` に 40 文字以内の短文が 30 本保存され、完全重複やレーベンシュタイン距離 ≤ 3 の近似が混入しない。
-- `render_audio_video` が OpenAI TTS (`gpt-4o-mini-tts`) のみを使用し、右側に人物画像・左側に字幕を表示する 1080x1920 の mp4 を S3 へ出力する。
+- `render_audio_video` が OpenAI TTS (`gpt-4o-mini-tts`, voice `ash`) と自動生成したモノクロ肖像を用い、右半分に人物画像・左半分の黒背景に字幕を表示する 1080x1920 の mp4 を S3 へ出力する。
 - `upload_youtube` が動画を投稿し、`figures.video.youtubeId` を保存する。
 - `pytest` による文字処理ユーティリティの単体テストが成功する。
 - README / 設定ファイル / Lambda コード / CDK 構成 / テストがすべて出力済みである。
@@ -132,5 +133,4 @@ make test
 
 - ElevenLabs 等の他社 TTS は使用していません。音声合成は OpenAI `gpt-4o-mini-tts` 固定です。
 - Lambda Layer に配置したフォントを `ffmpeg subtitles` フィルタから参照するため、`fontsdir=/opt/fonts` を指定しています。フォント名とファイル名が一致していることを確認してください。
-- `render_audio_video` は `/opt/fonts/default_portrait.jpg` をフォールバック画像として利用します。S3 に人物画像が存在しない場合はこのファイルを Layer に用意してください。
-
+- `render_audio_video` は肖像生成に失敗した場合のみ `/opt/fonts/default_portrait.jpg` を利用します。ネットワークエラー等に備えて Layer 側へファイルを配置してください。

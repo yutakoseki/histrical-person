@@ -94,10 +94,14 @@ YT_REFRESH_TOKEN=1//your-refresh-token
 ```bash
 OPENAI_COMPLETION_MODEL=gpt-4o-mini
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
-OPENAI_TTS_VOICE=alloy
+OPENAI_TTS_VOICE=ash
 OPENAI_TTS_FORMAT=mp3
+OPENAI_IMAGE_MODEL=gpt-image-1
+OPENAI_IMAGE_SIZE=1024x1792
 LOCK_MINUTES=60
 ```
+
+`OPENAI_IMAGE_MODEL` を `gpt-image-1` に設定すると、Lambda 内部のプロンプトが史実に基づく著名な肖像を再現するよう最適化されます。
 
 ## 3. AWS認証情報の設定
 
@@ -296,5 +300,3 @@ make destroy
 5. **自動解放**: 1時間ごとに LockAutoRelease が実行され、タイムアウトしたロックを解放
 
 CloudWatch Logs を監視して、各Lambda関数が正常に動作していることを確認してください。
-
-
