@@ -161,11 +161,20 @@ def _put_snippet(figure_pk: str, figure_name: str, sk: str, snippet: Snippet) ->
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     LOGGER.info("Received event: %s", event)
     if "figurePk" not in event and "responsePayload" in event:
-        event = event["responsePayload"]
+        payload = event["responsePayload"]
+        if isinstance(payload, dict):
+            event = payload
+        else:
+            LOGGER.error("Unexpected response payload type: %s", type(payload).__name__)
+            raise ValueError("Lambda destination payload must be a JSON object")
 
     figure_pk = event.get("figurePk")
     name = event.get("name")
     if not figure_pk or not name:
+        message = event.get("message")
+        if message:
+            LOGGER.info("Skipping snippet generation: %s", message)
+            return {"message": message}
         raise ValueError("figurePk and name are required")
 
     existing = _load_existing(figure_pk)

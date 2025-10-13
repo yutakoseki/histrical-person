@@ -78,7 +78,9 @@ export class HistricalPersonStack extends cdk.Stack {
       entry: path.join(__dirname, "../../lambdas/select_and_lock_figure"),
       environment: baseEnv,
       timeout: cdk.Duration.seconds(30),
-      onSuccess: new destinations.LambdaDestination(generateSnippets),
+      onSuccess: new destinations.LambdaDestination(generateSnippets, {
+        responseOnly: false,
+      }),
     });
 
     const lockAutoRelease = this.createPythonFunction("LockAutoRelease", {
@@ -100,7 +102,15 @@ export class HistricalPersonStack extends cdk.Stack {
       memorySize: 3008,
       ephemeralStorageSize: cdk.Size.gibibytes(2),
       layers: [ffmpegLayer, fontsLayer],
-      onSuccess: new destinations.LambdaDestination(uploadYoutube),
+      onSuccess: new destinations.LambdaDestination(uploadYoutube, {
+        responseOnly: false,
+      }),
+    });
+
+    // GenerateSnippetsのonSuccessを後から設定
+    generateSnippets.addEventSourceMapping("GenerateSnippetsToRenderAudioVideo", {
+      eventSourceArn: renderAudioVideo.functionArn,
+      startingPosition: lambda.StartingPosition.LATEST,
     });
 
     // Permissions
