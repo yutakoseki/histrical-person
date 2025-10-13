@@ -39,6 +39,13 @@ export class HistricalPersonStack extends cdk.Stack {
       enforceSSL: true,
     });
 
+    // サムネイルバケット（既存バケットを参照）
+    const thumbnailBucket = s3.Bucket.fromBucketName(
+      this,
+      "ThumbnailBucket",
+      "histrical-person-thumbnails"
+    );
+
     const ffmpegLayer = new lambda.LayerVersion(this, "FfmpegLayer", {
       code: lambda.Code.fromAsset(path.join(__dirname, "../../layers/ffmpeg")),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_13],
@@ -68,10 +75,37 @@ export class HistricalPersonStack extends cdk.Stack {
       YT_REFRESH_TOKEN: process.env.YT_REFRESH_TOKEN ?? "",
     };
 
+    // uploadYoutubeを先に定義
+    const uploadYoutube = this.createPythonFunction("UploadYoutube", {
+      entry: path.join(__dirname, "../../lambdas/upload_youtube"),
+      environment: {
+        ...baseEnv,
+        THUMBNAIL_BUCKET: thumbnailBucket.bucketName,
+      },
+      timeout: cdk.Duration.minutes(15),
+    });
+
+    // renderAudioVideoを次に定義
+    const renderAudioVideo = this.createPythonFunction("RenderAudioVideo", {
+      entry: path.join(__dirname, "../../lambdas/render_audio_video"),
+      environment: baseEnv,
+      timeout: cdk.Duration.minutes(15),
+      memorySize: 3008,
+      ephemeralStorageSize: cdk.Size.gibibytes(2),
+      layers: [ffmpegLayer, fontsLayer],
+      onSuccess: new destinations.LambdaDestination(uploadYoutube, {
+        responseOnly: false,
+      }),
+    });
+
+    // generateSnippetsを次に定義
     const generateSnippets = this.createPythonFunction("GenerateSnippets", {
       entry: path.join(__dirname, "../../lambdas/generate_snippets_for_figure"),
       environment: baseEnv,
       timeout: cdk.Duration.minutes(5),
+      onSuccess: new destinations.LambdaDestination(renderAudioVideo, {
+        responseOnly: false,
+      }),
     });
 
     const selectAndLock = this.createPythonFunction("SelectAndLockFigure", {
@@ -89,30 +123,6 @@ export class HistricalPersonStack extends cdk.Stack {
       timeout: cdk.Duration.minutes(1),
     });
 
-    const uploadYoutube = this.createPythonFunction("UploadYoutube", {
-      entry: path.join(__dirname, "../../lambdas/upload_youtube"),
-      environment: baseEnv,
-      timeout: cdk.Duration.minutes(15),
-    });
-
-    const renderAudioVideo = this.createPythonFunction("RenderAudioVideo", {
-      entry: path.join(__dirname, "../../lambdas/render_audio_video"),
-      environment: baseEnv,
-      timeout: cdk.Duration.minutes(15),
-      memorySize: 3008,
-      ephemeralStorageSize: cdk.Size.gibibytes(2),
-      layers: [ffmpegLayer, fontsLayer],
-      onSuccess: new destinations.LambdaDestination(uploadYoutube, {
-        responseOnly: false,
-      }),
-    });
-
-    // GenerateSnippetsのonSuccessを後から設定
-    generateSnippets.addEventSourceMapping("GenerateSnippetsToRenderAudioVideo", {
-      eventSourceArn: renderAudioVideo.functionArn,
-      startingPosition: lambda.StartingPosition.LATEST,
-    });
-
     // Permissions
     figuresTable.grantReadWriteData(selectAndLock);
     figuresTable.grantReadWriteData(generateSnippets);
@@ -126,10 +136,12 @@ export class HistricalPersonStack extends cdk.Stack {
     artifactsBucket.grantReadWrite(renderAudioVideo);
     artifactsBucket.grantReadWrite(uploadYoutube);
 
+    thumbnailBucket.grantRead(uploadYoutube);
+
 
     // EventBridge schedules
     const selectRule = new events.Rule(this, "SelectFigureRule", {
-      schedule: events.Schedule.cron({ minute: "0", hour: "0" }), // 09:00 JST
+      schedule: events.Schedule.cron({ minute: "5", hour: "15" }), // 00:05 JST (UTC 15:05)
     });
     selectRule.addTarget(new targets.LambdaFunction(selectAndLock));
 
