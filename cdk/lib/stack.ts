@@ -46,6 +46,13 @@ export class HistricalPersonStack extends cdk.Stack {
       "histrical-person-thumbnails"
     );
 
+    // BGMバケット（既存バケットを参照）
+    const bgmBucket = s3.Bucket.fromBucketName(
+      this,
+      "BgmBucket",
+      "histrical-person-bgm"
+    );
+
     const ffmpegLayer = new lambda.LayerVersion(this, "FfmpegLayer", {
       code: lambda.Code.fromAsset(path.join(__dirname, "../../layers/ffmpeg")),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_13],
@@ -88,7 +95,12 @@ export class HistricalPersonStack extends cdk.Stack {
     // renderAudioVideoを次に定義
     const renderAudioVideo = this.createPythonFunction("RenderAudioVideo", {
       entry: path.join(__dirname, "../../lambdas/render_audio_video"),
-      environment: baseEnv,
+      environment: {
+        ...baseEnv,
+        BGM_S3_BUCKET: "histrical-person-bgm",
+        BGM_S3_KEY: "bgm.mp3",
+        BGM_VOLUME: "0.15",
+      },
       timeout: cdk.Duration.minutes(15),
       memorySize: 3008,
       ephemeralStorageSize: cdk.Size.gibibytes(2),
@@ -137,6 +149,7 @@ export class HistricalPersonStack extends cdk.Stack {
     artifactsBucket.grantReadWrite(uploadYoutube);
 
     thumbnailBucket.grantRead(uploadYoutube);
+    bgmBucket.grantRead(renderAudioVideo);
 
 
     // EventBridge schedules

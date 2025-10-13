@@ -186,7 +186,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     if len(registry) >= TARGET_COUNT:
         _mark_completed(figure_pk)
-        return {"message": "already completed", "count": len(registry)}
+        return {
+            "message": "already completed",
+            "count": len(registry),
+            "figurePk": figure_pk,
+            "name": name,
+        }
 
     next_index = _determine_next_index(existing)
     attempts = 0
@@ -216,7 +221,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
     _mark_completed(figure_pk)
-    return {"message": "completed", "count": len(registry)}
+    return {
+        "message": "completed",
+        "count": len(registry),
+        "figurePk": figure_pk,
+        "name": name,
+    }
 
 
 def _mark_completed(figure_pk: str) -> None:

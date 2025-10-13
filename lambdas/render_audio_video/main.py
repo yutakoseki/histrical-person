@@ -55,8 +55,21 @@ class Clip:
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     LOGGER.info("Render request: %s", event)
-    figure_pk = event["figurePk"]
-    name = event["name"]
+    
+    # Lambda Destinationからのペイロードをアンラップ
+    if "requestPayload" in event:
+        # Lambda Destinationからの呼び出し
+        payload = event
+        while "requestPayload" in payload and "responsePayload" in payload:
+            payload = payload["responsePayload"]
+        event = payload
+    
+    figure_pk = event.get("figurePk")
+    name = event.get("name")
+    
+    if not figure_pk or not name:
+        LOGGER.error(f"Missing figurePk or name in event: {event}")
+        raise ValueError("figurePk and name are required")
 
     sayings = _load_sayings(figure_pk)
     if len(sayings) < 30:
@@ -83,6 +96,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     return {
         "message": "rendered",
+        "figurePk": figure_pk,
+        "name": name,
         "outputs": {
             "video": f"out/{name}/final.mp4",
             "captions": f"out/{name}/captions.srt",
