@@ -23,8 +23,8 @@ OPENAI_MODEL = os.environ.get("OPENAI_COMPLETION_MODEL", "gpt-4o-mini")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 DDB_FIGURES = os.environ.get("DDB_FIGURES", "figures")
 DDB_SAYINGS = os.environ.get("DDB_SAYINGS", "sayings")
-TARGET_COUNT = 100  # 目標名言数
-MAX_ATTEMPTS = 15  # 100個生成に十分な試行回数
+TARGET_COUNT = 60  # 15分以内に確実に処理できる数
+MAX_ATTEMPTS = 10  # 60個生成に十分な試行回数
 BATCH_SIZE = 15
 
 dynamodb = boto3.resource("dynamodb")
