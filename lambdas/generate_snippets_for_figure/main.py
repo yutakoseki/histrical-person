@@ -23,9 +23,9 @@ OPENAI_MODEL = os.environ.get("OPENAI_COMPLETION_MODEL", "gpt-4o-mini")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 DDB_FIGURES = os.environ.get("DDB_FIGURES", "figures")
 DDB_SAYINGS = os.environ.get("DDB_SAYINGS", "sayings")
-TARGET_COUNT = 30
-MAX_ATTEMPTS = 10
-BATCH_SIZE = 12
+TARGET_COUNT = 150
+MAX_ATTEMPTS = 20
+BATCH_SIZE = 15
 
 dynamodb = boto3.resource("dynamodb")
 figures_table = dynamodb.Table(DDB_FIGURES)

@@ -72,8 +72,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         raise ValueError("figurePk and name are required")
 
     sayings = _load_sayings(figure_pk)
-    if len(sayings) < 30:
-        raise ValueError("Figure must have 30 sayings before rendering")
+    if len(sayings) < 150:
+        raise ValueError("Figure must have 150 sayings before rendering")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = pathlib.Path(tmpdir)
