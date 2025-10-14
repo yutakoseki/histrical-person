@@ -23,8 +23,8 @@ OPENAI_MODEL = os.environ.get("OPENAI_COMPLETION_MODEL", "gpt-4o-mini")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 DDB_FIGURES = os.environ.get("DDB_FIGURES", "figures")
 DDB_SAYINGS = os.environ.get("DDB_SAYINGS", "sayings")
-TARGET_COUNT = 150
-MAX_ATTEMPTS = 20  # 20回試行して、その時点の数で動画生成に進む
+TARGET_COUNT = 100  # 目標名言数
+MAX_ATTEMPTS = 15  # 100個生成に十分な試行回数
 BATCH_SIZE = 15
 
 dynamodb = boto3.resource("dynamodb")

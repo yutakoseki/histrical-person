@@ -101,9 +101,9 @@ export class HistricalPersonStack extends cdk.Stack {
         BGM_S3_KEY: "bgm.mp3",
         BGM_VOLUME: "0.15",
       },
-      timeout: cdk.Duration.minutes(15),
-      memorySize: 3008,
-      ephemeralStorageSize: cdk.Size.gibibytes(2),
+      timeout: cdk.Duration.minutes(15),  // Lambdaの最大タイムアウト
+      memorySize: 3008,  // Lambda最大メモリ（このアカウントの上限）
+      ephemeralStorageSize: cdk.Size.mebibytes(10240),  // 最大エフェメラルストレージ（10240 MB）
       layers: [ffmpegLayer, fontsLayer],
       onSuccess: new destinations.LambdaDestination(uploadYoutube, {
         responseOnly: false,

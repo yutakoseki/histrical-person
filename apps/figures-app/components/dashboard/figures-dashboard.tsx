@@ -640,7 +640,7 @@ function FigureDetailCard({ figure }: { figure: Figure | null }) {
       tags: (figure.tags ?? []).join(', '),
     });
     setInfo(null);
-  }, [figure?.pk]);
+  }, [figure]);
 
   if (!figure) {
     return (
