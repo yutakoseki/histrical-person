@@ -28,11 +28,17 @@ export function FiguresDashboard() {
   const [selectedPk, setSelectedPk] = useState<string | null>(null);
 
   const derivedStatuses = useMemo(() => {
+    const base: string[] = [...STATUS_OPTIONS];
     if (!figures?.length) {
-      return STATUS_OPTIONS;
+      return base;
     }
     const unique = Array.from(new Set(figures.map((item) => item.status)));
-    return STATUS_OPTIONS.concat(unique.filter((item) => !STATUS_OPTIONS.includes(item as (typeof STATUS_OPTIONS)[number])));
+    unique.forEach((status) => {
+      if (!base.includes(status)) {
+        base.push(status);
+      }
+    });
+    return base;
   }, [figures]);
 
   useEffect(() => {

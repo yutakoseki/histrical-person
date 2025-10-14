@@ -71,8 +71,8 @@ export class HistricalPersonStack extends cdk.Stack {
       S3_BUCKET: artifactsBucket.bucketName,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
       OPENAI_COMPLETION_MODEL: process.env.OPENAI_COMPLETION_MODEL ?? "gpt-4o",
-      OPENAI_TTS_MODEL: process.env.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts",
-      OPENAI_TTS_VOICE: process.env.OPENAI_TTS_VOICE ?? "ash",
+      OPENAI_TTS_MODEL: process.env.OPENAI_TTS_MODEL ?? "tts-1-hd",  // 高品質版
+      OPENAI_TTS_VOICE: process.env.OPENAI_TTS_VOICE ?? "alloy",
       OPENAI_TTS_FORMAT: process.env.OPENAI_TTS_FORMAT ?? "mp3",
       OPENAI_IMAGE_MODEL: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1",
       OPENAI_IMAGE_SIZE: process.env.OPENAI_IMAGE_SIZE ?? "1024x1792",
@@ -103,7 +103,7 @@ export class HistricalPersonStack extends cdk.Stack {
       },
       timeout: cdk.Duration.minutes(15),  // Lambdaの最大タイムアウト
       memorySize: 3008,  // Lambda最大メモリ（このアカウントの上限）
-      ephemeralStorageSize: cdk.Size.mebibytes(10240),  // 最大エフェメラルストレージ（10240 MB）
+      ephemeralStorageSize: cdk.Size.gibibytes(5),  // 5GB（100個の動画処理に十分）
       layers: [ffmpegLayer, fontsLayer],
       onSuccess: new destinations.LambdaDestination(uploadYoutube, {
         responseOnly: false,
