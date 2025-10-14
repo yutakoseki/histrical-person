@@ -24,7 +24,7 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 DDB_FIGURES = os.environ.get("DDB_FIGURES", "figures")
 DDB_SAYINGS = os.environ.get("DDB_SAYINGS", "sayings")
 TARGET_COUNT = 150
-MAX_ATTEMPTS = 20
+MAX_ATTEMPTS = 20  # 20回試行して、その時点の数で動画生成に進む
 BATCH_SIZE = 15
 
 dynamodb = boto3.resource("dynamodb")
@@ -214,11 +214,24 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 break
 
     if len(registry) < TARGET_COUNT:
-        return {
-            "message": "partial completion",
-            "count": len(registry),
-            "target": TARGET_COUNT,
-        }
+        LOGGER.warning(f"Partial completion: {len(registry)}/{TARGET_COUNT} sayings generated")
+        # 部分完了でも、一定数以上あれば動画作成を続行
+        if len(registry) >= 30:
+            _mark_completed(figure_pk)
+            return {
+                "message": "partial completion",
+                "count": len(registry),
+                "target": TARGET_COUNT,
+                "figurePk": figure_pk,
+                "name": name,
+            }
+        else:
+            # 30個未満の場合は失敗として扱う
+            return {
+                "message": "insufficient sayings",
+                "count": len(registry),
+                "target": TARGET_COUNT,
+            }
 
     _mark_completed(figure_pk)
     return {

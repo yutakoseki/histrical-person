@@ -10,6 +10,10 @@
     "cdk": "pnpm --dir cdk exec cdk",
     "cdk:bootstrap": "pnpm --dir cdk exec cdk bootstrap",
     "cdk:deploy": "pnpm --dir cdk exec cdk deploy",
-    "cdk:destroy": "pnpm --dir cdk exec cdk destroy"
+    "cdk:destroy": "pnpm --dir cdk exec cdk destroy",
+    "dev": "pnpm run web:dev",
+    "web:dev": "pnpm --filter figures-app dev",
+    "web:build": "pnpm --filter figures-app build",
+    "web:start": "pnpm --filter figures-app start"
   }
 }

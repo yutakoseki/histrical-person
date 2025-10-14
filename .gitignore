@@ -19,6 +19,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .pnpm-store/
+.next/
+.vercel/
 
 # CDK
 cdk.out/
@@ -61,4 +63,3 @@ deploy.log
 .coverage
 htmlcov/
 .pytest_cache/
-

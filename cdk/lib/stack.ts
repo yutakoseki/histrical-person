@@ -114,7 +114,7 @@ export class HistricalPersonStack extends cdk.Stack {
     const generateSnippets = this.createPythonFunction("GenerateSnippets", {
       entry: path.join(__dirname, "../../lambdas/generate_snippets_for_figure"),
       environment: baseEnv,
-      timeout: cdk.Duration.minutes(5),
+      timeout: cdk.Duration.minutes(10),  // 150個生成のため5分→10分に延長
       onSuccess: new destinations.LambdaDestination(renderAudioVideo, {
         responseOnly: false,
       }),
