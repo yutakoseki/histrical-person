@@ -51,11 +51,21 @@ s3_client = boto3.client("s3")
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     LOGGER.info("Upload event: %s", json.dumps(event))
-    if "figurePk" not in event and "requestPayload" in event:
-        event = event["requestPayload"]
-
-    figure_pk = event["figurePk"]
-    name = event["name"]
+    
+    # Lambda Destinationからのペイロードをアンラップ
+    if "requestPayload" in event:
+        # Lambda Destinationからの呼び出し
+        payload = event
+        while "requestPayload" in payload and "responsePayload" in payload:
+            payload = payload["responsePayload"]
+        event = payload
+    
+    figure_pk = event.get("figurePk")
+    name = event.get("name")
+    
+    if not figure_pk or not name:
+        LOGGER.error(f"Missing figurePk or name in event: {event}")
+        raise ValueError("figurePk and name are required")
 
     figure = figures_table.get_item(Key={"pk": figure_pk}).get("Item")
     if not figure:
