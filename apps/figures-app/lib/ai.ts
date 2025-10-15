@@ -58,6 +58,11 @@ const normalizeName = (value: string): string =>
     .replace(/[\\s　・･\\.\\-_,、，「」『』（）()［］\\[\\]]+/g, "")
     .toLowerCase();
 
+const toHalfWidthDigits = (value: string): string =>
+  value.replace(/[０-９]/g, (char) =>
+    String.fromCharCode(char.charCodeAt(0) - 0xfee0),
+  );
+
 export async function generateFigureProposal(
   input: AiRequestInput,
 ): Promise<AiProposal> {
@@ -82,7 +87,7 @@ export async function generateFigureProposal(
 あなたは日本語のビジネス・教養系チャンネルの編集者です。40〜70代男性視聴者（特に50〜60代）に刺さる偉人候補を提案してください。
 
 要件:
-- 日本人に限らず世界中の偉人を対象とすること。近代〜現代（19〜20世紀以降）の政治家・哲学者・学者・経営者など、史実に基づく名言が豊富な人物を優先。
+- 日本人多めだが、日本人に限らず世界中の偉人を対象とすること。近代〜現代（19〜20世紀以降）の政治家・哲学者・学者・経営者など、史実に基づく名言が豊富な人物を優先。
 - 「name」は日本語表記（カタカナ表記も可）で広く認知された人物名。
 - 「youtubeTitle」は以下を満たすこと:
   * 55〜85文字程度
@@ -116,12 +121,13 @@ export async function generateFigureProposal(
       - 【○○に学ぶ】“心に刺さる”人生の真理
       - 【○○に学ぶ】100年経っても色あせない“教え”
       - 【○○に学ぶ】“時代を超える”成功の哲学
-  * テンプレ内の○○を人物名に置換し、必要に応じて数字・副題・時代感を追加してもよいが煽りのニュアンスは維持する。
-  * テンプレ本文の後ろに「──○つの◯◯」「──3つの真実」など半角数字入りの副題を加え、人物の逸話や名言と関連する具体的ベネフィットを提示する。
+  * テンプレ内の○○を人物名に置換し、前半で「5つの◯◯」もしくは「7つの◯◯」といった半角数字+「つの」構文を必ず挿入し、煽りのニュアンスを維持する（3は避ける）。
+  * 数字は【】の直後から前半（最初の全角波ダッシュ「～」より前）で提示する。
+  * タイトル末尾には必ず「 ～◯◯が見抜いた本質～ 」形式のサブタイトルを加え、◯◯には人物の視点や象徴的な肩書きを入れる。
   * 選ぶテンプレートと仕上げの文言は、その人物の代表的な言葉・逸話・行動と論理的に結びつける。人物像にそぐわない煽りは避ける。
   * 昭和・平成などの時代感や「怪物」「帝王」「鉄人」などキャッチーなワードを活用。
   * ハッシュタグや #shorts は絶対に入れない。
- - 「thumbnailTitle」はサムネ用の12〜18文字程度の短い煽りコピー。全角で読みやすく、最大8語以内。人物の象徴的な言葉や教訓とつながる内容にし、可能であれば半角数字を含める。
+- 「thumbnailTitle」はサムネ用の12〜18文字程度の短い煽りコピー。全角で読みやすく、最大8語以内。人物の象徴的な言葉や教訓とつながる内容にし、可能であれば「5つ」「7つ」などの半角数字を含める。
 - 「summary」は3文以内で、人物の実績や格言が現代ビジネスに与える示唆を紹介。
 - 「hook」は動画冒頭で視聴者を惹きつけるパンチライン。
 - 「thumbnailIdea」はサムネイルデザインを考えるうえでの補足メモ（配色・構図・配置など）。
@@ -141,24 +147,45 @@ ${userIntent || "特になし"}
   );
 
   let lastError: Error | null = null;
+  let allowCustomTemperature = Number.isFinite(env.OPENAI_TEMPERATURE);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const completion = await openaiClient.chat.completions.create({
-      model: env.OPENAI_MODEL,
-      temperature: env.OPENAI_TEMPERATURE,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert producer for a Japanese short-form video channel featuring historical figures. Always respond with pure JSON that matches the requested schema.",
-        },
-        {
-          role: "user",
-          content: instruction,
-        },
-      ],
-    });
+    let completion;
+    try {
+      completion = await openaiClient.chat.completions.create({
+        model: env.OPENAI_MODEL,
+        response_format: { type: "json_object" },
+        ...(allowCustomTemperature
+          ? { temperature: env.OPENAI_TEMPERATURE }
+          : {}),
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an expert producer for a Japanese short-form video channel featuring historical figures. Always respond with pure JSON that matches the requested schema.",
+          },
+          {
+            role: "user",
+            content: instruction,
+          },
+        ],
+      });
+    } catch (error) {
+      const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+      const param = typeof error === "object" && error !== null ? (error as { param?: unknown }).param : undefined;
+      if (
+        allowCustomTemperature &&
+        code === "unsupported_value" &&
+        param === "temperature"
+      ) {
+        allowCustomTemperature = false;
+        lastError = new Error(
+          "指定したtemperatureはモデルでサポートされませんでした。デフォルト値で再試行します。",
+        );
+        continue;
+      }
+      throw error;
+    }
 
     const message = completion.choices[0]?.message?.content;
     if (!message) {
@@ -199,9 +226,42 @@ ${userIntent || "特になし"}
       continue;
     }
 
-    if (!/[0-9０-９]/.test(normalizedTitle)) {
+    const digitMatch = normalizedTitle.match(/[0-9０-９]+(?=つの)/);
+    if (!digitMatch) {
       lastError = new Error(
-        `タイトルに数字が含まれていません: ${youtubeTitle}`,
+        `「5つ/7つの◯◯」構文が見つかりません: ${youtubeTitle}`,
+      );
+      continue;
+    }
+
+    const digitIndex = normalizedTitle.indexOf(digitMatch[0]);
+    const numberValue = parseInt(toHalfWidthDigits(digitMatch[0]), 10);
+    if (!Number.isFinite(numberValue) || (numberValue !== 5 && numberValue !== 7)) {
+      lastError = new Error(
+        `使用できる数字は5または7です: ${youtubeTitle}`,
+      );
+      continue;
+    }
+
+    const closingBracketIndex = normalizedTitle.indexOf("】");
+    const firstWaveIndex = normalizedTitle.search(/[～〜]/);
+    if (firstWaveIndex === -1) {
+      lastError = new Error(
+        `「～◯◯が見抜いた本質～」の構文が不足しています: ${youtubeTitle}`,
+      );
+      continue;
+    }
+
+    if (digitIndex <= closingBracketIndex || digitIndex > firstWaveIndex) {
+      lastError = new Error(
+        `数字はタイトル前半（～の前）に配置してください: ${youtubeTitle}`,
+      );
+      continue;
+    }
+
+    if (!/～[^～〜]*本質[^～〜]*～\s*$/.test(normalizedTitle)) {
+      lastError = new Error(
+        `末尾は「～◯◯が見抜いた本質～」形式にしてください: ${youtubeTitle}`,
       );
       continue;
     }

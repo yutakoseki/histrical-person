@@ -374,14 +374,14 @@ function CreateFigureCard() {
           label="YouTubeタイトル"
           value={form.youtubeTitle}
           onChange={(event) => updateForm('youtubeTitle')(event.target.value)}
-          placeholder="【徳川家康の名言】天下泰平の知略 #shorts"
+          placeholder="【徳川家康に学ぶ】なぜあなたはまだ成功できないのか──5つの鉄則 ～神君が見抜いた本質～"
           required
         />
         <Input
           label="サムネ文言"
           value={form.thumbnailTitle}
           onChange={(event) => updateForm('thumbnailTitle')(event.target.value)}
-          placeholder="成功を阻む理由"
+          placeholder="5つの鉄則"
         />
         <Textarea
           label="概要 / Summary"
