@@ -23,6 +23,7 @@ export const figureRecordSchema = z.object({
       angle: z.string().optional(),
       hook: z.string().optional(),
       thumbnailIdea: z.string().optional(),
+      thumbnailTitle: z.string().optional(),
       sources: z.array(z.string()).optional(),
       tags: z.array(z.string()).optional(),
     })

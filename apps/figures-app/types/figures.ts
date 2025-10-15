@@ -10,6 +10,7 @@ export interface FigureAiPlan {
   angle?: string;
   hook?: string;
   thumbnailIdea?: string;
+  thumbnailTitle?: string;
   sources?: string[];
   tags?: string[];
 }
@@ -37,6 +38,7 @@ export interface AiProposal {
   summary: string;
   hook?: string;
   thumbnailIdea?: string;
+  thumbnailTitle?: string;
   tags?: string[];
   sourceHints?: string[];
   notes?: string;

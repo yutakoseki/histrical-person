@@ -259,6 +259,7 @@ function CreateFigureCard() {
   const [form, setForm] = useState({
     name: '',
     youtubeTitle: '',
+    thumbnailTitle: '',
     summary: '',
     notes: '',
     tags: '',
@@ -275,6 +276,7 @@ function CreateFigureCard() {
     setForm({
       name: proposal.name,
       youtubeTitle: proposal.youtubeTitle,
+      thumbnailTitle: proposal.thumbnailTitle ?? '',
       summary: proposal.summary,
       notes: proposal.notes ?? '',
       tags: (proposal.tags ?? []).join(', '),
@@ -318,6 +320,7 @@ function CreateFigureCard() {
             summary: proposal.summary,
             hook: proposal.hook,
             thumbnailIdea: proposal.thumbnailIdea,
+            thumbnailTitle: form.thumbnailTitle.trim() || proposal.thumbnailTitle,
             sources: proposal.sourceHints,
             tags: proposal.tags,
           }
@@ -329,6 +332,7 @@ function CreateFigureCard() {
       setForm({
         name: '',
         youtubeTitle: '',
+        thumbnailTitle: '',
         summary: '',
         notes: '',
         tags: '',
@@ -373,6 +377,12 @@ function CreateFigureCard() {
           placeholder="【徳川家康の名言】天下泰平の知略 #shorts"
           required
         />
+        <Input
+          label="サムネ文言"
+          value={form.thumbnailTitle}
+          onChange={(event) => updateForm('thumbnailTitle')(event.target.value)}
+          placeholder="成功を阻む理由"
+        />
         <Textarea
           label="概要 / Summary"
           value={form.summary}
@@ -399,6 +409,9 @@ function CreateFigureCard() {
             <ul className="mt-1 space-y-1">
               <li>・{proposal.summary}</li>
               {proposal.hook && <li>・Hook: {proposal.hook}</li>}
+              {proposal.thumbnailTitle && (
+                <li>・サムネタイトル: {proposal.thumbnailTitle}</li>
+              )}
               {proposal.thumbnailIdea && (
                 <li>・Thumbnail: {proposal.thumbnailIdea}</li>
               )}
@@ -756,6 +769,9 @@ function FigureDetailCard({ figure }: { figure: Figure | null }) {
             <ul className="mt-1 space-y-1">
               {figure.aiPlan.summary && <li>・{figure.aiPlan.summary}</li>}
               {figure.aiPlan.hook && <li>・Hook: {figure.aiPlan.hook}</li>}
+              {figure.aiPlan.thumbnailTitle && (
+                <li>・サムネ文言: {figure.aiPlan.thumbnailTitle}</li>
+              )}
               {figure.aiPlan.thumbnailIdea && (
                 <li>・Thumbnail: {figure.aiPlan.thumbnailIdea}</li>
               )}
