@@ -1,7 +1,0 @@
-{
-  "buildCommand": "pnpm --filter figures-app build",
-  "outputDirectory": "apps/figures-app/.next",
-  "installCommand": "pnpm install",
-  "framework": "nextjs",
-  "rootDirectory": "apps/figures-app"
-}
