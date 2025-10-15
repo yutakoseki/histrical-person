@@ -14,6 +14,8 @@
     "dev": "pnpm run web:dev",
     "web:dev": "pnpm --filter figures-app dev",
     "web:build": "pnpm --filter figures-app build",
-    "web:start": "pnpm --filter figures-app start"
+    "web:start": "pnpm --filter figures-app start",
+    "build": "pnpm --filter figures-app build",
+    "start": "pnpm --filter figures-app start"
   }
 }
